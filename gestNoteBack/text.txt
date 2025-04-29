@@ -1,0 +1,95 @@
+Entrez le mot de passe ├á hasher : Password1!
+Mot de passe haché : $2b$10$6Ohuqj/ev5.TxyuhLVuutuulac4/p2r4p3hlCly.3b1refWjTVi9.
+email:yvanmoko3@gmail.com
+
+
+
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const mysql = require('mysql2/promise');
+
+async function generatePDFFromMySQL() {
+  // 1. Connexion à la base de données MySQL
+  const connection = await mysql.createConnection({
+    host: 'localhost',
+    user: 'votre_utilisateur',
+    password: 'votre_mot_de_passe',
+    database: 'votre_base_de_données'
+  });
+
+  try {
+    // 2. Récupération des données
+    const [rows] = await connection.query('SELECT * FROM votre_table LIMIT 100');
+    
+    // 3. Création du PDF
+    const doc = new PDFDocument();
+    doc.pipe(fs.createWriteStream('rapport.pdf'));
+
+    // En-tête du PDF
+    doc.fontSize(20).text('Rapport des données', { align: 'center' });
+    doc.moveDown();
+
+    // Tableau des données
+    const table = {
+      headers: Object.keys(rows[0] || {}),
+      rows: rows.map(row => Object.values(row))
+    };
+
+    // Dessiner le tableau
+    drawTable(doc, table);
+
+    // Pied de page
+    doc.fontSize(10).text(`Généré le ${new Date().toLocaleString()}`, { align: 'right' });
+
+    doc.end();
+    console.log('PDF généré avec succès!');
+
+  } catch (error) {
+    console.error('Erreur:', error);
+  } finally {
+    await connection.end();
+  }
+}
+
+// Fonction pour dessiner un tableau dans le PDF
+function drawTable(doc, table) {
+  const tableTop = 150;
+  const colWidths = [];
+  const rowHeight = 30;
+  const margin = 50;
+
+  // Calcul des largeurs de colonnes
+  table.headers.forEach((header, i) => {
+    colWidths[i] = doc.widthOfString(header) + margin;
+  });
+
+  table.rows.forEach(row => {
+    row.forEach((cell, i) => {
+      const cellWidth = doc.widthOfString(String(cell)) + margin;
+      if (cellWidth > colWidths[i]) {
+        colWidths[i] = cellWidth;
+      }
+    });
+  });
+
+  // Dessiner les en-têtes
+  let x = margin;
+  table.headers.forEach((header, i) => {
+    doc.font('Helvetica-Bold').text(header, x, tableTop, { width: colWidths[i], align: 'left' });
+    x += colWidths[i];
+  });
+
+  // Dessiner les lignes de données
+  let y = tableTop + rowHeight;
+  table.rows.forEach((row, rowIndex) => {
+    x = margin;
+    row.forEach((cell, colIndex) => {
+      doc.font('Helvetica').text(String(cell), x, y, { width: colWidths[colIndex], align: 'left' });
+      x += colWidths[colIndex];
+    });
+    y += rowHeight;
+  });
+}
+
+// Exécuter la fonction
+generatePDFFromMySQL();
